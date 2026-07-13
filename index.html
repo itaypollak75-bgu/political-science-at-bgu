@@ -1,0 +1,581 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>מפת ההכשרה — המחלקה לפוליטיקה וממשל</title>
+<style>
+:root{
+  --ink:#1c1c1a; --muted:#5f5e5a; --quiet:#8a8981;
+  --line:#e2e0d8; --card:#fff; --page:#f4f2ec;
+  --a:#0f6e56; --a-soft:#e1f0ea;
+  --b:#7a4bab; --b-soft:#efe8f6;
+  --c:#b9540e; --c-soft:#fbeee0;
+  --warn:#a32d2d; --warn-soft:#fbe9e4;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Arial,Helvetica,sans-serif;background:var(--page);color:var(--ink);line-height:1.5;padding:22px}
+.wrap{max-width:1280px;margin:0 auto}
+header{margin-bottom:14px}
+h1{font-size:24px;font-weight:600}
+.sub{font-size:13px;color:var(--muted);margin-top:3px}
+
+/* tabs */
+.tabs{display:flex;gap:6px;margin:16px 0 14px;border-bottom:1px solid var(--line)}
+.tab{padding:9px 18px;font-size:14px;font-weight:600;color:var(--muted);cursor:pointer;border:none;background:none;
+  border-bottom:2px solid transparent;margin-bottom:-1px}
+.tab.on{color:var(--a);border-bottom-color:var(--a)}
+.tab:hover{color:var(--ink)}
+
+/* filters */
+.filters{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin-bottom:14px;
+  display:flex;gap:18px;flex-wrap:wrap;align-items:center}
+.fgroup{display:flex;align-items:center;gap:7px}
+.flabel{font-size:12.5px;color:var(--quiet);font-weight:600}
+select{font-family:inherit;font-size:13px;padding:5px 9px;border:1px solid var(--line);border-radius:6px;background:#fff;color:var(--ink)}
+.reset{font-size:12.5px;color:var(--b);background:none;border:none;cursor:pointer;text-decoration:underline}
+.count{margin-right:auto;font-size:12.5px;color:var(--quiet)}
+
+.panel{display:none}
+.panel.on{display:block}
+
+/* timeline */
+.tl-sem{margin-bottom:22px}
+.tl-title{font-size:15px;font-weight:600;color:var(--a);margin-bottom:8px}
+.tl-grid{background:var(--card);border:1px solid var(--line);border-radius:10px;overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:12.5px}
+th,td{border:1px solid var(--line);padding:0}
+th.wk{background:#f0eee7;font-weight:600;color:var(--muted);font-size:11px;text-align:center;padding:6px 3px;white-space:nowrap}
+th.wk.cn{min-width:170px}
+th.wk.full,th.wk.slim{min-width:100px}
+td.cell.slim{background:#fcfbf8}
+td.cell.noTasks{background:var(--warn-soft);color:var(--warn);font-size:12px;font-weight:600;
+  text-align:right;padding:10px 12px;font-style:italic}
+/* year colors */
+tr.y1 td.cname{background:#e9f3ef;border-right:3px solid var(--a)}
+tr.y2 td.cname{background:#efe9f6;border-right:3px solid var(--b)}
+.chip.y1{background:var(--a-soft);color:var(--a);border-color:#bfdfd4}
+.chip.y2{background:var(--b-soft);color:var(--b);border-color:#d6c6e8}
+.chip.exam{background:var(--c-soft);color:var(--c);border-color:#eccfae}
+.ylegend{display:flex;gap:14px;font-size:11.5px;color:var(--muted);margin-bottom:8px;align-items:center}
+.ydot{display:inline-block;width:10px;height:10px;border-radius:3px;margin-left:5px;vertical-align:-1px}
+/* gap banner */
+.gaps{background:var(--warn-soft);border:1px solid #eccbc4;border-radius:9px;padding:10px 14px;margin-bottom:14px}
+.gaps h4{font-size:13px;color:var(--warn);margin-bottom:5px}
+.gaps .gl{display:flex;gap:6px;flex-wrap:wrap}
+.gaps .gt{font-size:11.5px;background:#fff;color:var(--warn);border:1px solid #eccbc4;border-radius:4px;padding:2px 8px;font-weight:600}
+.gaps .ok{font-size:12px;color:var(--a)}
+tr.norow td.cname{background:#fbeee9;border-right:3px solid var(--warn)}
+tr.norow td.cell{background:#fdf7f5}
+.notask{display:block;font-size:10px;color:var(--warn);font-weight:600;margin-top:2px}
+.skchip{display:inline-block;font-size:9.5px;background:#fff;border:1px solid var(--line);border-radius:4px;
+  padding:1px 4px;margin:1px;color:var(--muted)}
+th.wk .dt{display:block;font-size:9.5px;color:var(--quiet);font-weight:400}
+th.wk.brk{background:var(--warn-soft);color:var(--warn)}
+td.cname.ld{background:#f0eee7}
+td.cname{background:#faf9f5;font-weight:600;padding:8px 10px;min-width:180px;font-size:12.5px;text-align:right}
+td.cname .yr{display:block;font-size:10.5px;color:var(--quiet);font-weight:400}
+td.cell{height:52px;text-align:center;vertical-align:middle;padding:2px}
+td.cell.brk{background:#faf3f1}
+.chip{display:block;background:var(--a-soft);color:var(--a);border:1px solid #bfdfd4;border-radius:6px;
+  padding:4px 6px;font-size:11px;cursor:pointer;line-height:1.35;text-align:right;margin:1px 0}
+.chip b{display:block;font-weight:600;font-size:11.5px}
+.chip .cmeta{display:block;font-size:9.5px;color:var(--muted);font-weight:400;margin-top:1px}
+.chip.exam{background:var(--c-soft);color:var(--c);border-color:#eccfae}
+.chip:hover{filter:brightness(0.94)}
+.load{font-size:11px;text-align:center;padding:5px;font-weight:700}
+td.loadcell{background:#f7f6f1}
+
+/* matrix */
+.mx td.cell{height:auto;padding:7px 4px;text-align:center;font-weight:600;font-size:13px}
+.mx .lvl0{color:#cbc9c2}
+.mx .lvl1{background:#eaf3ef;color:var(--a)}
+.mx .lvl2{background:#d3e9e1;color:var(--a)}
+.mx .lvl3{background:#b3dbcd;color:#0a5643}
+th.sk{background:#f0eee7;font-size:11px;font-weight:600;color:var(--muted);padding:8px 4px;text-align:center;
+  min-width:78px;vertical-align:bottom}
+
+/* list */
+.item{background:var(--card);border:1px solid var(--line);border-radius:9px;padding:12px 14px;margin-bottom:8px}
+.item-h{display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap}
+.item-t{font-weight:600;font-size:14.5px}
+.item-m{font-size:11.5px;color:var(--quiet)}
+.item-d{font-size:13px;color:var(--muted);margin:5px 0 8px}
+.tags{display:flex;gap:5px;flex-wrap:wrap}
+.tag{font-size:10.5px;background:var(--b-soft);color:var(--b);border-radius:4px;padding:2px 7px;font-weight:600}
+.tag.free{background:#f0eee7;color:var(--muted);font-style:italic;font-weight:400}
+.empty{text-align:center;color:var(--quiet);padding:40px;font-style:italic}
+
+/* modal */
+.ov{display:none;position:fixed;inset:0;background:rgba(28,28,26,.45);z-index:50;align-items:center;justify-content:center;padding:20px}
+.ov.on{display:flex}
+.modal{background:#fff;border-radius:12px;max-width:560px;width:100%;padding:20px 22px;max-height:82vh;overflow-y:auto}
+.modal h3{font-size:18px;margin-bottom:3px}
+.modal .mm{font-size:12px;color:var(--quiet);margin-bottom:12px}
+.modal p{font-size:13.5px;color:var(--ink);margin-bottom:10px}
+.modal .lab{font-size:11.5px;color:var(--quiet);font-weight:600;display:block;margin-bottom:3px}
+.close{float:left;background:none;border:none;font-size:20px;color:var(--quiet);cursor:pointer;line-height:1}
+.note{font-size:11.5px;color:var(--quiet);font-style:italic;margin-top:12px;padding-top:10px;border-top:1px solid var(--line)}
+footer{margin-top:20px;font-size:11.5px;color:var(--quiet);text-align:center;font-style:italic}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <h1>מפת ההכשרה — קורסי החובה</h1>
+  <p class="sub">מה נלמד מתי, אילו מיומנויות מפותחות, והיכן העומס מצטבר · שנת הלימודים תשפ״ו</p>
+</header>
+
+<div class="filters">
+  <div class="fgroup"><span class="flabel">חיפוש חופשי</span>
+    <input id="fText" type="text" placeholder="הוגה, מושג, מילה..." style="font-family:inherit;font-size:13px;padding:5px 9px;border:1px solid var(--line);border-radius:6px;min-width:150px"></div>
+  <div class="fgroup"><span class="flabel">מיומנות</span>
+    <select id="fSkill"><option value="">הכול</option></select></div>
+  <div class="fgroup"><span class="flabel">הוגה / מקור</span>
+    <select id="fSrc"><option value="">הכול</option></select></div>
+  <div class="fgroup"><span class="flabel">שנה</span>
+    <select id="fYear"><option value="">הכול</option><option value="א׳">א׳</option><option value="ב׳">ב׳</option></select></div>
+  <div class="fgroup"><span class="flabel">קורס</span>
+    <select id="fCourse"><option value="">הכול</option></select></div>
+  <div class="fgroup"><span class="flabel">סמסטר</span>
+    <select id="fSem"><option value="">הכול</option><option value="א">א׳</option><option value="ב">ב׳</option></select></div>
+  <div class="fgroup"><span class="flabel">סוג</span>
+    <select id="fType"><option value="">הכול</option><option>ניתוח טקסט</option><option>עבודה</option><option>מבחן</option><option>הצגה</option></select></div>
+  <div class="fgroup"><span class="flabel">רכיב משנה</span>
+    <select id="fSub"><option value="">הכול</option></select></div>
+  <div class="fgroup"><span class="flabel">עומק עיבוד</span>
+    <select id="fDepth"><option value="">הכול</option></select></div>
+  <div class="fgroup"><span class="flabel">חלק/שלם</span>
+    <select id="fScope"><option value="">הכול</option></select></div>
+  <div class="fgroup"><span class="flabel">הכוונה</span>
+    <select id="fGuide"><option value="">הכול</option></select></div>
+  <div class="fgroup"><span class="flabel">אופי מחקר</span>
+    <select id="fInq"><option value="">הכול</option></select></div>
+  <div class="fgroup"><span class="flabel">קהל יעד</span>
+    <select id="fAud"><option value="">הכול</option></select></div>
+  <button class="reset" onclick="resetF()">נקה סינון</button>
+  <span class="count" id="cnt"></span>
+</div>
+
+<div class="filters" style="margin-top:-6px">
+  <div class="fgroup"><span class="flabel">תוכן הקוביות</span>
+    <select id="dMode">
+      <option value="concept">מושג מרכזי</option>
+      <option value="title">שם המטלה</option>
+      <option value="skills">מיומנויות</option>
+      <option value="subs">רכיבי משנה</option>
+      <option value="sources">הוגים ומקורות</option>
+      <option value="depth">עומק העיבוד</option>
+      <option value="scope">חלק מול שלם</option>
+      <option value="guide">רמת ההכוונה</option>
+      <option value="type">סוג תוצר והיקף</option>
+      <option value="aud">קהל יעד</option>
+    </select></div>
+  <div class="fgroup"><span class="flabel">שורת סיכום</span>
+    <select id="sMode">
+      <option value="load">עומס — מטלות בשבוע</option>
+      <option value="skills">מיומנויות מתורגלות בשבוע</option>
+      <option value="subs">רכיבי משנה בשבוע</option>
+      <option value="depth">עומק העיבוד בשבוע</option>
+    </select></div>
+</div>
+
+<div class="tabs">
+  <button class="tab on" data-p="tl">ציר זמן</button>
+  <button class="tab" data-p="mx">מטריצת מיומנויות</button>
+  <button class="tab" data-p="sr">מפת הוגים ומקורות</button>
+  <button class="tab" data-p="ls">רשימת מטלות</button>
+</div>
+
+<div class="panel on" id="tl"></div>
+<div class="panel" id="mx"></div>
+<div class="panel" id="sr"></div>
+<div class="panel" id="ls"></div>
+
+<footer>נתוני המיומנויות והתכנים חולצו מניתוח הסילבוסים והמטלות · שיבוץ השבועות טעון אימות מול הסילבוסים</footer>
+</div>
+
+<div class="ov" id="ov" onclick="if(event.target.id==='ov')closeM()">
+  <div class="modal" id="modal"></div>
+</div>
+
+<script>
+/* ============ DATA ============ */
+const SKILLS = ["ניתוח מקורות","הבנה מושגית","כתיבה אקדמית","השוואה","ביסוס קשרים סיבתיים","מיומנויות מחקר","ביקורת והערכה","עמדה אפיסטמולוגית"];
+
+const SUB = {
+ "ניתוח מקורות":["זיהוי הטענה המרכזית","פירוק מבנה הטיעון","הבחנה בין תיאור לפרשנות","כריית עדויות מחומר גולמי"],
+ "הבנה מושגית":["הגדרה מדויקת","פירוק מושג לרכיביו","יחסים בין מושגים","יישום על מקרה חדש"],
+ "כתיבה אקדמית":["היבטים מבניים","לכידות וקוהרנטיות","בניית טיעון","רגיסטר וביסוס אקדמי"],
+ "השוואה":["בחירת ציר השוואה","מיקום עמדות על הציר","זיהוי המשותף והמבחין","הכרעה מנומקת"],
+ "ביסוס קשרים סיבתיים":["מתאם מול סיבתיות","הצעת מנגנון","הסברים חלופיים","משתנים מתערבים"],
+ "מיומנויות מחקר":["עיצוב מחקר","בניית כלי ואיסוף","ניתוח נתונים","הצגת ממצאים"],
+ "ביקורת והערכה":["תוקף לוגי","חולשות בראיות","שיפוט נורמטיבי","הכרעה בין עמדות"],
+ "עמדה אפיסטמולוגית":["דעה מול טענה מבוססת","החזקת מורכבות","ערעור המובן־מאליו","מודעות לעמדת הדובר"],
+};
+
+/* חמישה ממדים חוצי־מיומנויות */
+const DIMS = {
+ depth:  {label:"עומק העיבוד",  vals:["חילוץ ופירוק","פרשנות","קישור לידע אחר","ביקורת והכרעה"]},
+ scope:  {label:"חלק מול שלם",  vals:["רכיב בודד","תוצר חלקי","תוצר שלם"]},
+ guide:  {label:"רמת ההכוונה",  vals:["פתוח","מכוון","מובנה מלא"]},
+ inquiry:{label:"אופי המחקר",   vals:["תיאורטי־פילוסופי","אמפירי","משולב","לא רלוונטי"]},
+ aud:    {label:"קהל יעד",      vals:["אקדמי","חברה אזרחית","פוליטי","מקצועי","קהל רחב"]},
+};
+
+
+
+const SEMS = {
+ "א":{label:"סמסטר א׳ · 26.10.2025 – 23.01.2026", weeks:13, start:[2025,9,26], breaks:[]},
+ "ב":{label:"סמסטר ב׳ · 15.03.2026 – 03.07.2026", weeks:16, start:[2026,2,15], breaks:[3,4]}
+};
+
+
+let COURSES = [];
+let TASKS   = [];
+
+/* ---------- CSV loading ---------- */
+function parseCSV(text){
+  const rows=[]; let row=[], cur="", q=false;
+  for(let i=0;i<text.length;i++){
+    const ch=text[i];
+    if(q){
+      if(ch==='"'){ if(text[i+1]==='"'){cur+='"';i++;} else q=false; }
+      else cur+=ch;
+    } else {
+      if(ch==='"') q=true;
+      else if(ch===','){ row.push(cur); cur=""; }
+      else if(ch==='\n'){ row.push(cur); rows.push(row); row=[]; cur=""; }
+      else if(ch!=='\r') cur+=ch;
+    }
+  }
+  if(cur.length||row.length){ row.push(cur); rows.push(row); }
+  return rows.filter(r=>r.some(c=>c.trim()!==""));
+}
+const splitList = v => (v||"").split("|").map(x=>x.trim()).filter(Boolean);
+
+function buildCourses(text){
+  const rows=parseCSV(text.replace(/^\uFEFF/,""));
+  const head=rows[0].map(h=>h.trim()); const idx=n=>head.indexOf(n);
+  COURSES = rows.slice(1).map(r=>{
+    const g=n=>{const i=idx(n); return i<0?"":(r[i]||"").trim();};
+    return {id:g("course_id"), name:g("course_name"), year:g("year"), status:g("status"),
+            sem:g("semester"), field:g("field"), assess:g("assessment"), note:g("note")};
+  }).filter(c=>c.id);
+}
+function buildTasks(text){
+  const rows=parseCSV(text.replace(/^\uFEFF/,""));
+  const head=rows[0].map(h=>h.trim()); const idx=n=>head.indexOf(n);
+  TASKS = rows.slice(1).map(r=>{
+    const g=n=>{const i=idx(n); return i<0?"":(r[i]||"").trim();};
+    return {
+      id:g("task_id"), course:g("course_id"), concept:g("concept"), title:g("title"),
+      sem:g("semester"), week:parseInt(g("week"))||0, type:g("type"), len:g("length")||"לא צוין",
+      aud:g("audience"), depth:g("depth"), scope:g("scope"), guide:g("guidance"), inquiry:g("inquiry"),
+      sources:splitList(g("sources")), srcNote:g("source_note"),
+      srcStatus:g("source_status"), srcFormat:g("source_format"),
+      skills:splitList(g("skills")), subs:splitList(g("subskills")),
+      free:g("free_note"), desc:g("desc")
+    };
+  }).filter(t=>t.id);
+}
+
+async function boot(){
+  try{
+    const [rc,rt] = await Promise.all([
+      fetch("courses.csv",{cache:"no-store"}),
+      fetch("tasks.csv",{cache:"no-store"})
+    ]);
+    if(!rc.ok) throw new Error("courses.csv — HTTP "+rc.status);
+    if(!rt.ok) throw new Error("tasks.csv — HTTP "+rt.status);
+    buildCourses(await rc.text());
+    buildTasks(await rt.text());
+    initUI();
+    renderAll();
+  }catch(err){
+    document.querySelector(".wrap").insertAdjacentHTML("afterbegin",
+      `<div class="gaps"><h4>לא ניתן לטעון את קבצי הנתונים</h4>
+       <p style="font-size:12.5px;color:var(--muted)">ודא ש-<b>courses.csv</b> ו-<b>tasks.csv</b> נמצאים לצד הדשבורד,
+       ושהדף נפתח דרך כתובת אינטרנט (לא בלחיצה כפולה — הדפדפן חוסם קריאת קבצים מקומיים).<br>פרטים: ${err.message}</p></div>`);
+  }
+}
+
+/* ============ HELPERS ============ */
+const F = {skill:"",year:"",course:"",sem:"",src:"",type:"",text:"",aud:"",sub:"",depth:"",scope:"",guide:"",inquiry:""};
+const cById = id => COURSES.find(c=>c.id===id);
+function taskPass(t){
+  const c = cById(t.course);
+  if(F.skill && !t.skills.includes(F.skill)) return false;
+  if(F.year && c.year!==F.year) return false;
+  if(F.course && t.course!==F.course) return false;
+  if(F.sem && t.sem!==F.sem) return false;
+  if(F.src && !(t.sources||[]).includes(F.src)) return false;
+  if(F.type && t.type!==F.type) return false;
+  if(F.aud && (t.aud||"")!==F.aud) return false;
+  if(F.sub && !(t.subs||[]).includes(F.sub)) return false;
+  if(F.depth && t.depth!==F.depth) return false;
+  if(F.scope && t.scope!==F.scope) return false;
+  if(F.guide && t.guide!==F.guide) return false;
+  if(F.inquiry && t.inquiry!==F.inquiry) return false;
+  if(F.text){
+    const q=F.text.trim();
+    const hay=[t.concept,t.title,t.desc,t.free||"",t.srcNote||"",t.len||"",(t.sources||[]).join(" "),t.skills.join(" "),(t.subs||[]).join(" "),t.depth||"",t.scope||"",t.guide||"",t.aud||"",c.name].join(" ");
+    if(!hay.includes(q)) return false;
+  }
+  return true;
+}
+function coursePass(c){
+  if(F.year && c.year!==F.year) return false;
+  if(F.course && c.id!==F.course) return false;
+  return true;
+}
+function wkDate(sem,w){
+  const [y,m,d] = SEMS[sem].start;
+  const dt = new Date(y,m,d); dt.setDate(dt.getDate()+(w-1)*7);
+  return String(dt.getDate()).padStart(2,"0")+"."+String(dt.getMonth()+1).padStart(2,"0");
+}
+
+/* ============ TIMELINE ============ */
+function cellHTML(t,c){
+  const yc = c.year==="א׳" ? "y1" : "y2";
+  const cls = t.type==="מבחן" ? "exam" : yc;
+  const M = document.getElementById("dMode").value;
+  let inner="";
+  if(M==="concept")      inner=`<b>${t.concept}</b><span class="cmeta">${t.type} · ${t.len}</span>`;
+  else if(M==="title")   inner=`<b>${t.title}</b><span class="cmeta">${t.type}</span>`;
+  else if(M==="skills")  inner=`<b>${t.concept}</b><span class="cmeta">${t.skills.map(x=>`<span class="skchip">${x}</span>`).join("")}</span>`;
+  else if(M==="subs")    inner=`<b>${t.concept}</b><span class="cmeta">${(t.subs||[]).map(x=>`<span class="skchip">${x}</span>`).join("")}</span>`;
+  else if(M==="sources") inner=`<b>${(t.sources||[]).length?t.sources.join(" · "):"—"}</b><span class="cmeta">${t.concept}</span>`;
+  else if(M==="depth")   inner=`<b>${t.depth||"—"}</b><span class="cmeta">${t.concept}</span>`;
+  else if(M==="scope")   inner=`<b>${t.scope||"—"}</b><span class="cmeta">${t.concept}</span>`;
+  else if(M==="guide")   inner=`<b>${t.guide||"—"}</b><span class="cmeta">${t.concept}</span>`;
+  else if(M==="type")    inner=`<b>${t.type}</b><span class="cmeta">${t.len}</span>`;
+  else if(M==="aud")     inner=`<b>${t.aud||"—"}</b><span class="cmeta">${t.concept}</span>`;
+  return `<span class="chip ${cls}" onclick="openM('${t.id}')">${inner}</span>`;
+}
+function renderTL(){
+  const vis = TASKS.filter(taskPass);
+  const SM = document.getElementById("sMode").value;
+  // gap banner: skills with zero coverage under current filter
+  const covered = new Set(vis.flatMap(t=>t.skills));
+  const missing = SKILLS.filter(s=>!covered.has(s));
+  const allSubs = Object.values(SUB).flat();
+  const covSub = new Set(vis.flatMap(t=>t.subs||[]));
+  const missSub = allSubs.filter(x=>!covSub.has(x));
+  let h = `<div class="gaps">`;
+  h += missing.length
+    ? `<h4>מיומנויות שאינן מטופלות כלל — בסינון הנוכחי</h4><div class="gl">${missing.map(m=>`<span class="gt">${m}</span>`).join("")}</div>`
+    : `<span class="ok">כל שמונה המיומנויות מטופלות באיזושהי מטלה</span>`;
+  h += `<h4 style="margin-top:9px">רכיבי משנה שאינם מטופלים (${missSub.length} מתוך ${allSubs.length})</h4>
+        <div class="gl">${missSub.map(m=>`<span class="gt" style="font-weight:400">${m}</span>`).join("")}</div></div>`;
+  h += `<div class="ylegend"><span><span class="ydot" style="background:var(--a)"></span>שנה א׳</span>
+        <span><span class="ydot" style="background:var(--b)"></span>שנה ב׳</span>
+        <span><span class="ydot" style="background:var(--c)"></span>מבחן</span></div>`;
+  for(const s of ["א","ב"]){
+    if(F.sem && F.sem!==s) continue;
+    const S = SEMS[s];
+    const cs = COURSES.filter(c=>coursePass(c) && c.sem.includes(s));
+    const busy = {};
+    for(let w=1;w<=S.weeks;w++) busy[w]=vis.filter(t=>t.sem===s&&t.week===w&&cs.some(c=>c.id===t.course)).length;
+    h += `<div class="tl-sem"><div class="tl-title">${S.label}</div><div class="tl-grid"><table>`;
+    h += `<tr><th class="wk cn">קורס</th>`;
+    for(let w=1;w<=S.weeks;w++){
+      const brk=S.breaks.includes(w), empty=!busy[w];
+      h += `<th class="wk ${brk?"brk":(empty?"slim":"full")}">${brk?"חופשה":"ש׳"+w}${empty&&!brk?"":`<span class="dt">${wkDate(s,w)}</span>`}</th>`;
+    }
+    h += `</tr>`;
+    for(const c of cs){
+      const yc = c.year==="א׳"?"y1":"y2";
+      const noneAtAll = TASKS.filter(t=>t.course===c.id).length===0;
+      h += `<tr class="${yc} ${noneAtAll?"norow":""}"><td class="cname">${c.name}<span class="yr">שנה ${c.year} · ${c.status||""} · ${c.id}</span>${noneAtAll?`<span class="notask">אין מטלות מתועדות</span>`:""}</td>`;
+      const hasAny = vis.some(t=>t.course===c.id&&t.sem===s);
+      if(!hasAny){
+        h += `<td class="cell noTasks" colspan="${S.weeks}">אין מטלות מתועדות בסמסטר זה${c.note?` — ${c.note}`:""}${c.assess?` · הערכה: ${c.assess}`:""}</td></tr>`;
+        continue;
+      }
+      for(let w=1;w<=S.weeks;w++){
+        const brk=S.breaks.includes(w), empty=!busy[w];
+        const here=vis.filter(t=>t.course===c.id&&t.sem===s&&t.week===w);
+        h += `<td class="cell ${brk?"brk":""} ${empty?"slim":""}">${here.map(t=>cellHTML(t,c)).join("")}</td>`;
+      }
+      h += `</tr>`;
+    }
+    // dynamic summary row
+    const lbl = SM==="load" ? "עומס — מטלות בשבוע" : "מיומנויות מתורגלות בשבוע";
+    h += `<tr><td class="cname ld">${lbl}</td>`;
+    for(let w=1;w<=S.weeks;w++){
+      const empty=!busy[w];
+      const wk = vis.filter(t=>t.sem===s&&t.week===w&&cs.some(c=>c.id===t.course));
+      let cell="";
+      if(SM==="load"){
+        const n=wk.length, col=n>=3?"var(--warn)":n===2?"var(--c)":"var(--quiet)";
+        cell=`<div class="load" style="color:${col}">${n||"·"}</div>`;
+      } else if(SM==="subs"){
+        const sk=[...new Set(wk.flatMap(t=>t.subs||[]))];
+        cell = sk.length ? `<div style="padding:3px">${sk.map(x=>`<span class="skchip">${x}</span>`).join("")}</div>` : `<div class="load" style="color:var(--quiet)">·</div>`;
+      } else if(SM==="depth"){
+        const sk=[...new Set(wk.map(t=>t.depth).filter(Boolean))];
+        cell = sk.length ? `<div style="padding:3px">${sk.map(x=>`<span class="skchip">${x}</span>`).join("")}</div>` : `<div class="load" style="color:var(--quiet)">·</div>`;
+      } else {
+        const sk=[...new Set(wk.flatMap(t=>t.skills))];
+        cell = sk.length ? `<div style="padding:3px">${sk.map(x=>`<span class="skchip">${x}</span>`).join("")}</div>` : `<div class="load" style="color:var(--quiet)">·</div>`;
+      }
+      h += `<td class="cell loadcell ${empty?"slim":""}">${cell}</td>`;
+    }
+    h += `</tr></table></div></div>`;
+  }
+  document.getElementById("tl").innerHTML = h;
+}
+
+/* ============ MATRIX ============ */
+function renderMX(){
+  const cs = COURSES.filter(coursePass);
+  const sks = F.skill ? [F.skill] : SKILLS;
+  let h = `<div class="tl-grid mx"><table><tr><th class="wk" style="min-width:180px">קורס</th>`;
+  sks.forEach(s=>h+=`<th class="sk">${s}</th>`);
+  h += `</tr>`;
+  for(const c of cs){
+    h += `<tr><td class="cname">${c.name}<span class="yr">שנה ${c.year} · ${c.field}</span></td>`;
+    for(const s of sks){
+      const n = TASKS.filter(t=>t.course===c.id && t.skills.includes(s) && taskPass(t)).length;
+      const lvl = n===0?"lvl0":n===1?"lvl1":n===2?"lvl2":"lvl3";
+      h += `<td class="cell ${lvl}">${n||"·"}</td>`;
+    }
+    h += `</tr>`;
+  }
+  // totals
+  h += `<tr><td class="cname" style="background:#f0eee7">סך המטלות</td>`;
+  for(const s of sks){
+    const n = TASKS.filter(t=>t.skills.includes(s) && taskPass(t) && cs.some(c=>c.id===t.course)).length;
+    h += `<td class="cell loadcell" style="font-weight:700;color:${n<=1?"var(--warn)":"var(--muted)"}">${n}</td>`;
+  }
+  h += `</tr></table></div>
+  <p class="note" style="padding:10px 2px">המספר בכל תא = בכמה מטלות של אותו קורס המיומנות מפותחת. עמודה דלילה = מיומנות שכמעט אינה מתורגלת בחובה.</p>`;
+  document.getElementById("mx").innerHTML = h;
+}
+
+
+/* ============ SOURCES MAP ============ */
+function renderSR(){
+  const vis = TASKS.filter(taskPass);
+  const all = {};
+  vis.forEach(t=>(t.sources||[]).forEach(sc=>{ (all[sc]=all[sc]||[]).push(t); }));
+  const keys = Object.keys(all).sort((a,b)=>all[b].length-all[a].length);
+  if(!keys.length){document.getElementById("sr").innerHTML=`<p class="empty">אין הוגים או מקורות התואמים את הסינון</p>`;return;}
+  let h = `<div class="tl-grid"><table><tr>
+    <th class="wk" style="min-width:150px">הוגה / מקור</th>
+    <th class="wk" style="min-width:60px">מופעים</th>
+    <th class="wk" style="min-width:340px;text-align:right">היכן ומתי</th>
+    <th class="wk" style="min-width:220px;text-align:right">הערת מקור</th></tr>`;
+  for(const k of keys){
+    const ts = all[k];
+    const where = ts.map(t=>{
+      const c=cById(t.course);
+      return `<span class="chip" onclick="openM('${t.id}')">${c.name} · שנה ${c.year} · סמ׳ ${t.sem}׳ ש׳${t.week}</span>`;
+    }).join(" ");
+    const notes = [...new Set(ts.map(t=>t.srcNote).filter(Boolean))].join(" · ");
+    const multi = ts.length>1;
+    h += `<tr>
+      <td class="cname">${k}${multi?`<span class="yr" style="color:var(--b)">מופיע ביותר ממטלה אחת</span>`:""}</td>
+      <td class="cell" style="font-weight:700;color:${multi?"var(--b)":"var(--quiet)"}">${ts.length}</td>
+      <td class="cell" style="text-align:right;padding:6px 8px">${where}</td>
+      <td class="cell" style="text-align:right;padding:6px 8px;font-size:11px;color:var(--muted)">${notes||"—"}</td>
+    </tr>`;
+  }
+  h += `</table></div>
+  <p class="note" style="padding:10px 2px">הוגה שמופיע ביותר ממטלה אחת הוא צומת אפשרי — מקום שבו אפשר לבנות רצף. הוגה שמופיע פעם אחת בלבד הוא מועמד ל״מושג נטוש״.</p>`;
+  document.getElementById("sr").innerHTML=h;
+}
+
+/* ============ LIST ============ */
+function renderLS(){
+  const vis = TASKS.filter(taskPass);
+  if(!vis.length){document.getElementById("ls").innerHTML=`<p class="empty">אין מטלות התואמות את הסינון</p>`;return;}
+  let h="";
+  vis.sort((a,b)=> a.sem===b.sem ? a.week-b.week : (a.sem==="א"?-1:1));
+  for(const t of vis){
+    const c=cById(t.course);
+    h += `<div class="item">
+      <div class="item-h"><span class="item-t">${t.title}</span>
+        <span class="item-m">${c.name} · שנה ${c.year} · סמסטר ${t.sem}׳ שבוע ${t.week} · ${t.type} · היקף: ${t.len}</span></div>
+      <p class="item-d">${t.desc}</p>
+      ${(t.sources||[]).length?`<p class="item-d" style="font-size:12px"><span style="color:var(--quiet);font-weight:600">מקורות: </span>${t.sources.join(" · ")}${t.srcNote?` <span style="color:var(--quiet)">(${t.srcNote})</span>`:""}</p>`:""}
+      <div class="tags">${t.skills.map(s=>`<span class="tag">${s}</span>`).join("")}
+      ${t.free?`<span class="tag free">${t.free}</span>`:""}</div>
+    </div>`;
+  }
+  document.getElementById("ls").innerHTML=h;
+}
+
+/* ============ MODAL ============ */
+function openM(id){
+  const t=TASKS.find(x=>x.id===id), c=cById(t.course);
+  document.getElementById("modal").innerHTML=`
+    <button class="close" onclick="closeM()">×</button>
+    <h3>${t.title}</h3>
+    <p class="mm">${c.name} · שנה ${c.year} · סמסטר ${t.sem}׳ · שבוע ${t.week} · ${t.type}</p>
+    <span class="lab">מה נדרש</span><p>${t.desc}</p>
+    <span class="lab">היקף</span><p>${t.len}</p>
+    <span class="lab">מושג מרכזי</span><p>${t.concept}</p>
+    <span class="lab">הממדים</span>
+    <p style="font-size:12.5px">עומק: <b>${t.depth||"—"}</b> · היקף: <b>${t.scope||"—"}</b> · הכוונה: <b>${t.guide||"—"}</b> · אופי: <b>${t.inquiry||"—"}</b> · קהל: <b>${t.aud||"—"}</b></p>
+    <span class="lab">רכיבי משנה</span>
+    <div class="tags">${(t.subs||[]).map(x=>`<span class="tag" style="background:#eef3f1;color:var(--a)">${x}</span>`).join("")}</div>
+    ${(t.sources||[]).length?`<span class="lab">הוגים ומקורות</span><p>${t.sources.join(" · ")}${t.srcNote?`<br><span style="font-size:12px;color:var(--quiet)">${t.srcNote}</span>`:""}</p>`:""}
+    <span class="lab">מיומנויות</span>
+    <div class="tags">${t.skills.map(s=>`<span class="tag">${s}</span>`).join("")}</div>
+    ${t.free?`<span class="lab" style="margin-top:10px">הערות ופעולות מיוחדות</span><p style="font-style:italic;color:var(--muted)">${t.free}</p>`:""}
+    <p class="note">שיבוץ השבוע הוא הערכה — טעון אימות מול הסילבוס.</p>`;
+  document.getElementById("ov").classList.add("on");
+}
+function closeM(){document.getElementById("ov").classList.remove("on");}
+
+/* ============ WIRING ============ */
+function renderAll(){
+  renderTL();renderMX();renderSR();renderLS();
+  const n=TASKS.filter(taskPass).length;
+  document.getElementById("cnt").textContent=`מוצגות ${n} מתוך ${TASKS.length} מטלות`;
+}
+function resetF(){
+  F.skill=F.year=F.course=F.sem=F.src=F.type=F.text=F.aud=F.sub=F.depth=F.scope=F.guide=F.inquiry="";
+  ["fSkill","fYear","fCourse","fSem","fSrc","fType","fText","fAud","fSub","fDepth","fScope","fGuide","fInq"].forEach(i=>document.getElementById(i).value="");
+  renderAll();
+}
+function initUI(){
+SKILLS.forEach(s=>{const o=document.createElement("option");o.value=o.textContent=s;document.getElementById("fSkill").appendChild(o);});
+COURSES.forEach(c=>{const o=document.createElement("option");o.value=c.id;o.textContent=c.name;document.getElementById("fCourse").appendChild(o);});
+document.getElementById("fSkill").onchange=e=>{F.skill=e.target.value;renderAll();};
+document.getElementById("fYear").onchange=e=>{F.year=e.target.value;renderAll();};
+document.getElementById("fCourse").onchange=e=>{F.course=e.target.value;renderAll();};
+document.getElementById("fSem").onchange=e=>{F.sem=e.target.value;renderAll();};
+document.getElementById("fType").onchange=e=>{F.type=e.target.value;renderAll();};
+document.getElementById("fAud").onchange=e=>{F.aud=e.target.value;renderAll();};
+document.getElementById("fSub").onchange=e=>{F.sub=e.target.value;renderAll();};
+document.getElementById("fDepth").onchange=e=>{F.depth=e.target.value;renderAll();};
+document.getElementById("fScope").onchange=e=>{F.scope=e.target.value;renderAll();};
+document.getElementById("fGuide").onchange=e=>{F.guide=e.target.value;renderAll();};
+document.getElementById("fInq").onchange=e=>{F.inquiry=e.target.value;renderAll();};
+document.getElementById("fSrc").onchange=e=>{F.src=e.target.value;renderAll();};
+document.getElementById("fText").oninput=e=>{F.text=e.target.value;renderAll();};
+document.getElementById("dMode").onchange=()=>renderTL();
+document.getElementById("sMode").onchange=()=>renderTL();
+Object.entries(SUB).forEach(([sk,list])=>{
+  const g=document.createElement("optgroup"); g.label=sk;
+  list.forEach(v=>{const o=document.createElement("option");o.value=o.textContent=v;g.appendChild(o);});
+  document.getElementById("fSub").appendChild(g);
+});
+[["fDepth","depth"],["fScope","scope"],["fGuide","guide"],["fInq","inquiry"],["fAud","aud"]].forEach(([el,k])=>{
+  DIMS[k].vals.forEach(v=>{const o=document.createElement("option");o.value=o.textContent=v;document.getElementById(el).appendChild(o);});
+});
+[...new Set(TASKS.flatMap(t=>t.sources||[]))].sort().forEach(sc=>{
+  const o=document.createElement("option");o.value=o.textContent=sc;document.getElementById("fSrc").appendChild(o);});
+document.querySelectorAll(".tab").forEach(b=>b.onclick=()=>{
+  document.querySelectorAll(".tab").forEach(x=>x.classList.remove("on"));
+  document.querySelectorAll(".panel").forEach(x=>x.classList.remove("on"));
+  b.classList.add("on");document.getElementById(b.dataset.p).classList.add("on");
+});
+}
+boot();
+</script>
+</body>
+</html>
