@@ -68,6 +68,15 @@ tr.y2 td.cname{background:#efe9f6;border-right:3px solid var(--b)}
 tr.norow td.cname{background:#fbeee9;border-right:3px solid var(--warn)}
 tr.norow td.cell{background:#fdf7f5}
 .notask{display:block;font-size:10px;color:var(--warn);font-weight:600;margin-top:2px}
+/* development graph */
+.grwrap{background:var(--card);border:1px solid var(--line);border-radius:11px;padding:16px}
+.grpick{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+.grbtn{font-size:12px;font-weight:600;padding:5px 11px;border-radius:16px;cursor:pointer;
+  border:2px solid var(--line);background:#fff;color:var(--muted)}
+.grbtn.on{color:#fff}
+.grlegend{display:flex;gap:20px;flex-wrap:wrap;font-size:11.5px;color:var(--muted);margin-top:12px;
+  padding-top:10px;border-top:1px solid var(--line)}
+.grlegend b{color:var(--ink)}
 .skchip{display:inline-block;font-size:9.5px;background:#fff;border:1px solid var(--line);border-radius:4px;
   padding:1px 4px;margin:1px;color:var(--muted)}
 th.wk .dt{display:block;font-size:9.5px;color:var(--quiet);font-weight:400}
@@ -184,12 +193,14 @@ footer{margin-top:20px;font-size:11.5px;color:var(--quiet);text-align:center;fon
 
 <div class="tabs">
   <button class="tab on" data-p="tl">ציר זמן</button>
+  <button class="tab" data-p="gr">גרף התפתחות</button>
   <button class="tab" data-p="mx">מטריצת מיומנויות</button>
   <button class="tab" data-p="sr">מפת הוגים ומקורות</button>
   <button class="tab" data-p="ls">רשימת מטלות</button>
 </div>
 
 <div class="panel on" id="tl"></div>
+<div class="panel" id="gr"></div>
 <div class="panel" id="mx"></div>
 <div class="panel" id="sr"></div>
 <div class="panel" id="ls"></div>
@@ -457,6 +468,99 @@ function renderMX(){
 }
 
 
+
+/* ============ DEVELOPMENT GRAPH ============ */
+const DEPTH_ORDER = ["חילוץ ופירוק","פרשנות","קישור לידע אחר","ביקורת והכרעה","יצירה מקורית"];
+const SCOPE_ORDER = ["רכיב בודד","תוצר חלקי","תוצר שלם"];
+const SK_COLORS = {
+ "ניתוח מקורות":"#0f6e56","הבנה מושגית":"#7a4bab","כתיבה אקדמית":"#b9540e",
+ "השוואה":"#1d6ca8","ביסוס קשרים סיבתיים":"#a32d2d","מיומנויות מחקר":"#5d7a12",
+ "ביקורת והערכה":"#9c2a6e","עמדה אפיסטמולוגית":"#3d5a80"
+};
+let GR_SEL = ["כתיבה אקדמית","מיומנויות מחקר"];
+
+/* semester index 1..6 : year א=1,2 · ב=3,4 · ג=5,6 */
+function semIndex(c,t){
+  const y = c.year==="א׳"?0 : c.year==="ב׳"?1 : 2;
+  return y*2 + (t.sem==="א" ? 1 : 2);
+}
+function renderGR(){
+  const vis = TASKS.filter(taskPass);
+  const W=980,H=420, PL=150,PR=40,PT=26,PB=64;
+  const iw=W-PL-PR, ih=H-PT-PB;
+  const xs = i => PL + iw - ((i-0.5)/6)*iw;          // RTL: sem1 at right
+  const ys = d => PT + ih - ((d-0.5)/5)*ih;          // depth 1..5
+
+  let svg=`<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto">`;
+  // depth gridlines + labels
+  DEPTH_ORDER.forEach((d,i)=>{
+    const y=ys(i+1);
+    svg+=`<line x1="${PL}" y1="${y}" x2="${W-PR}" y2="${y}" stroke="#e6e4dc" stroke-width="1"/>`;
+    svg+=`<text x="${W-PR+6}" y="${y+4}" font-size="11" fill="#8a8981" text-anchor="start" direction="rtl">${d}</text>`;
+  });
+  // semester axis
+  for(let i=1;i<=6;i++){
+    const x=xs(i);
+    const yr = i<=2?"א׳":i<=4?"ב׳":"ג׳";
+    const has = vis.some(t=>{const c=cById(t.course); return c && semIndex(c,t)===i;});
+    svg+=`<line x1="${x}" y1="${PT}" x2="${x}" y2="${PT+ih}" stroke="#f0eee7" stroke-width="1"/>`;
+    svg+=`<text x="${x}" y="${H-PB+22}" font-size="12" font-weight="600" fill="${has?"#1c1c1a":"#c4c2ba"}" text-anchor="middle">סמסטר ${i}</text>`;
+    svg+=`<text x="${x}" y="${H-PB+38}" font-size="10" fill="${has?"#8a8981":"#c4c2ba"}" text-anchor="middle">שנה ${yr}${has?"":" · אין נתונים"}</text>`;
+  }
+  // one line per selected skill
+  GR_SEL.forEach(sk=>{
+    const col = SK_COLORS[sk]||"#555";
+    const pts=[];
+    for(let i=1;i<=6;i++){
+      const inSem = vis.filter(t=>{const c=cById(t.course); return c && semIndex(c,t)===i && t.skills.includes(sk);});
+      if(!inSem.length) continue;
+      const depths = inSem.map(t=>Math.max(1,DEPTH_ORDER.indexOf(t.depth)+1));
+      const avg = depths.reduce((a,b)=>a+b,0)/depths.length;
+      // dominant scope -> shape fill
+      const sc = inSem.map(t=>SCOPE_ORDER.indexOf(t.scope)+1).filter(x=>x>0);
+      const scAvg = sc.length ? sc.reduce((a,b)=>a+b,0)/sc.length : 1;
+      pts.push({x:xs(i), y:ys(avg), n:inSem.length, scope:scAvg, sem:i, tasks:inSem, depth:avg});
+    }
+    if(pts.length>1){
+      svg+=`<polyline points="${pts.map(p=>p.x+","+p.y).join(" ")}" fill="none" stroke="${col}" stroke-width="3" stroke-linejoin="round" opacity="0.85"/>`;
+    }
+    pts.forEach(p=>{
+      const r = 7 + Math.min(p.n,5)*3.4;                 // size = frequency
+      const solid = p.scope>=2.5;                        // full product -> filled
+      const half  = p.scope>=1.6 && p.scope<2.5;
+      svg+=`<circle cx="${p.x}" cy="${p.y}" r="${r}"
+              fill="${solid?col:(half?col:"#ffffff")}" fill-opacity="${solid?1:(half?0.45:1)}"
+              stroke="${col}" stroke-width="3.5"/>`;
+      svg+=`<text x="${p.x}" y="${p.y+4}" font-size="11" font-weight="700"
+              fill="${solid?"#fff":col}" text-anchor="middle">${p.n}</text>`;
+    });
+  });
+  svg+=`</svg>`;
+
+  const picker = SKILLS.map(sk=>{
+    const on=GR_SEL.includes(sk), col=SK_COLORS[sk];
+    return `<button class="grbtn ${on?"on":""}" style="border-color:${col};${on?`background:${col}`:`color:${col}`}"
+             onclick="toggleGR('${sk}')">${sk}</button>`;
+  }).join("");
+
+  document.getElementById("gr").innerHTML = `
+    <div class="grwrap">
+      <div class="grpick">${picker}</div>
+      ${svg}
+      <div class="grlegend">
+        <span><b>גובה</b> = עומק העיבוד הממוצע (רמת התובענות)</span>
+        <span><b>גודל העיגול</b> = מספר המטלות שמתרגלות את המיומנות באותו סמסטר</span>
+        <span><b>עיגול מלא</b> = תוצר שלם · <b>חלול</b> = רכיב בודד</span>
+      </div>
+      <p class="note" style="margin-top:8px">קו עולה = המיומנות נעשית תובענית יותר. קו שטוח = חוזרת שוב באותה רמה, בלי העמקה.<br>
+      הגרף מודד את מה שהתכנית <b>דורשת</b>, לא את מה שהסטודנט השיג.</p>
+    </div>`;
+}
+function toggleGR(sk){
+  GR_SEL = GR_SEL.includes(sk) ? GR_SEL.filter(x=>x!==sk) : [...GR_SEL, sk];
+  renderGR();
+}
+
 /* ============ SOURCES MAP ============ */
 function renderSR(){
   const vis = TASKS.filter(taskPass);
@@ -534,7 +638,7 @@ function closeM(){document.getElementById("ov").classList.remove("on");}
 
 /* ============ WIRING ============ */
 function renderAll(){
-  renderTL();renderMX();renderSR();renderLS();
+  renderTL();renderGR();renderMX();renderSR();renderLS();
   const n=TASKS.filter(taskPass).length;
   document.getElementById("cnt").textContent=`מוצגות ${n} מתוך ${TASKS.length} מטלות`;
 }
