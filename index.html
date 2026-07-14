@@ -486,54 +486,64 @@ function semIndex(c,t){
 }
 function renderGR(){
   const vis = TASKS.filter(taskPass);
-  const W=980,H=420, PL=150,PR=40,PT=26,PB=64;
+  const W=980,H=440, PL=150,PR=44,PT=26,PB=64;
   const iw=W-PL-PR, ih=H-PT-PB;
-  const xs = i => PL + iw - ((i-0.5)/6)*iw;          // RTL: sem1 at right
+  const xs = i => PL + iw - ((i-0.5)/6)*iw;          // RTL: semester 1 on the right
   const ys = d => PT + ih - ((d-0.5)/5)*ih;          // depth 1..5
+  const colW = iw/6;
 
   let svg=`<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto">`;
+
   // depth gridlines + labels
   DEPTH_ORDER.forEach((d,i)=>{
     const y=ys(i+1);
     svg+=`<line x1="${PL}" y1="${y}" x2="${W-PR}" y2="${y}" stroke="#e6e4dc" stroke-width="1"/>`;
     svg+=`<text x="${W-PR+6}" y="${y+4}" font-size="11" fill="#8a8981" text-anchor="start" direction="rtl">${d}</text>`;
   });
+
   // semester axis
   for(let i=1;i<=6;i++){
     const x=xs(i);
     const yr = i<=2?"א׳":i<=4?"ב׳":"ג׳";
     const has = vis.some(t=>{const c=cById(t.course); return c && semIndex(c,t)===i;});
-    svg+=`<line x1="${x}" y1="${PT}" x2="${x}" y2="${PT+ih}" stroke="#f0eee7" stroke-width="1"/>`;
+    svg+=`<line x1="${x}" y1="${PT}" x2="${x}" y2="${PT+ih}" stroke="#f5f3ed" stroke-width="1"/>`;
     svg+=`<text x="${x}" y="${H-PB+22}" font-size="12" font-weight="600" fill="${has?"#1c1c1a":"#c4c2ba"}" text-anchor="middle">סמסטר ${i}</text>`;
     svg+=`<text x="${x}" y="${H-PB+38}" font-size="10" fill="${has?"#8a8981":"#c4c2ba"}" text-anchor="middle">שנה ${yr}${has?"":" · אין נתונים"}</text>`;
   }
-  // one line per selected skill
+
+  // ---- one dot per TASK, at its true depth. no averaging, no connecting line ----
   GR_SEL.forEach(sk=>{
     const col = SK_COLORS[sk]||"#555";
-    const pts=[];
     for(let i=1;i<=6;i++){
-      const inSem = vis.filter(t=>{const c=cById(t.course); return c && semIndex(c,t)===i && t.skills.includes(sk);});
+      const inSem = vis.filter(t=>{
+        const c=cById(t.course);
+        return c && semIndex(c,t)===i && t.skills.includes(sk);
+      });
       if(!inSem.length) continue;
-      const depths = inSem.map(t=>Math.max(1,DEPTH_ORDER.indexOf(t.depth)+1));
-      const avg = depths.reduce((a,b)=>a+b,0)/depths.length;
-      // dominant scope -> shape fill
-      const sc = inSem.map(t=>SCOPE_ORDER.indexOf(t.scope)+1).filter(x=>x>0);
-      const scAvg = sc.length ? sc.reduce((a,b)=>a+b,0)/sc.length : 1;
-      pts.push({x:xs(i), y:ys(avg), n:inSem.length, scope:scAvg, sem:i, tasks:inSem, depth:avg});
+
+      // group by depth level so overlapping dots fan out horizontally
+      const byDepth={};
+      inSem.forEach(t=>{
+        const d = Math.max(1, DEPTH_ORDER.indexOf(t.depth)+1);
+        (byDepth[d]=byDepth[d]||[]).push(t);
+      });
+
+      Object.entries(byDepth).forEach(([d,list])=>{
+        const y = ys(+d);
+        const n = list.length;
+        const step = Math.min(26, (colW*0.55)/Math.max(n,1));
+        list.forEach((t,k)=>{
+          const x = xs(i) + (k - (n-1)/2)*step;
+          const full = t.scope==="תוצר שלם";
+          const r = 11;                                  // volume kept, so fill reads clearly
+          svg+=`<circle cx="${x}" cy="${y}" r="${r}"
+                  fill="${full?col:"#ffffff"}"
+                  stroke="${col}" stroke-width="3.5">
+                  <title>${t.concept} · ${t.title} · ${t.depth} · ${t.scope}</title>
+                </circle>`;
+        });
+      });
     }
-    if(pts.length>1){
-      svg+=`<polyline points="${pts.map(p=>p.x+","+p.y).join(" ")}" fill="none" stroke="${col}" stroke-width="3" stroke-linejoin="round" opacity="0.85"/>`;
-    }
-    pts.forEach(p=>{
-      const r = 7 + Math.min(p.n,5)*3.4;                 // size = frequency
-      const solid = p.scope>=2.5;                        // full product -> filled
-      const half  = p.scope>=1.6 && p.scope<2.5;
-      svg+=`<circle cx="${p.x}" cy="${p.y}" r="${r}"
-              fill="${solid?col:(half?col:"#ffffff")}" fill-opacity="${solid?1:(half?0.45:1)}"
-              stroke="${col}" stroke-width="3.5"/>`;
-      svg+=`<text x="${p.x}" y="${p.y+4}" font-size="11" font-weight="700"
-              fill="${solid?"#fff":col}" text-anchor="middle">${p.n}</text>`;
-    });
   });
   svg+=`</svg>`;
 
@@ -548,11 +558,11 @@ function renderGR(){
       <div class="grpick">${picker}</div>
       ${svg}
       <div class="grlegend">
-        <span><b>גובה</b> = עומק העיבוד הממוצע (רמת התובענות)</span>
-        <span><b>גודל העיגול</b> = מספר המטלות שמתרגלות את המיומנות באותו סמסטר</span>
-        <span><b>עיגול מלא</b> = תוצר שלם · <b>חלול</b> = רכיב בודד</span>
+        <span><b>כל נקודה = מטלה אחת</b>, בגובה עומק העיבוד שהיא דורשת</span>
+        <span><b>נקודה מלאה</b> = תוצר שלם · <b>נקודה חלולה</b> = רכיב בודד או תוצר חלקי</span>
+        <span><b>מספר הנקודות בסמסטר</b> = כמה מטלות מתרגלות את המיומנות</span>
       </div>
-      <p class="note" style="margin-top:8px">קו עולה = המיומנות נעשית תובענית יותר. קו שטוח = חוזרת שוב באותה רמה, בלי העמקה.<br>
+      <p class="note" style="margin-top:8px">נקודות שנודדות מעלה = המיומנות נעשית תובענית יותר. פס אופקי של נקודות = חוזרת שוב באותה רמה, בלי העמקה.<br>
       הגרף מודד את מה שהתכנית <b>דורשת</b>, לא את מה שהסטודנט השיג.</p>
     </div>`;
 }
