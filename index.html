@@ -288,7 +288,7 @@ function buildTasks(text){
       sources:splitList(g("sources")), srcNote:g("source_note"),
       srcStatus:g("source_status"), srcFormat:g("source_format"),
       skills:splitList(g("skills")), subs:splitList(g("subskills")),
-      free:g("free_note"), desc:g("desc")
+      free:g("free_note"), desc:g("desc"), file:g("file_url")
     };
   }).filter(t=>t.id);
 }
@@ -641,6 +641,7 @@ function openM(id){
     <span class="lab">מיומנויות</span>
     <div class="tags">${t.skills.map(s=>`<span class="tag">${s}</span>`).join("")}</div>
     ${t.free?`<span class="lab" style="margin-top:10px">הערות ופעולות מיוחדות</span><p style="font-style:italic;color:var(--muted)">${t.free}</p>`:""}
+    ${t.file?`<a href="${t.file}" target="_blank" rel="noopener" style="display:inline-block;margin-top:6px;padding:8px 14px;background:var(--a);color:#fff;border-radius:8px;font-size:13px;font-weight:600;text-decoration:none">📄 פתיחת קובץ המטלה המלא</a>`:""}
     <p class="note">שיבוץ השבוע הוא הערכה — טעון אימות מול הסילבוס.</p>`;
   document.getElementById("ov").classList.add("on");
 }
