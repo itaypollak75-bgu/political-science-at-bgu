@@ -65,9 +65,7 @@ tr.y2 td.cname{background:#efe9f6;border-right:3px solid var(--b)}
 .gaps .gl{display:flex;gap:6px;flex-wrap:wrap}
 .gaps .gt{font-size:11.5px;background:#fff;color:var(--warn);border:1px solid #eccbc4;border-radius:4px;padding:2px 8px;font-weight:600}
 .gaps .ok{font-size:12px;color:var(--a)}
-tr.norow td.cname{background:#fbeee9;border-right:3px solid var(--warn)}
-tr.norow td.cell{background:#fdf7f5}
-.notask{display:block;font-size:10px;color:var(--warn);font-weight:600;margin-top:2px}
+.notask{display:none}
 /* development graph */
 .grwrap{background:var(--card);border:1px solid var(--line);border-radius:11px;padding:16px}
 .grpick{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
@@ -399,8 +397,7 @@ function renderTL(){
     h += `</tr>`;
     for(const c of cs){
       const yc = c.year==="א׳"?"y1":"y2";
-      const noneAtAll = TASKS.filter(t=>t.course===c.id).length===0;
-      h += `<tr class="${yc} ${noneAtAll?"norow":""}"><td class="cname">${c.name}<span class="yr">שנה ${c.year} · ${c.status||""} · ${c.id}</span>${noneAtAll?`<span class="notask">אין מטלות מתועדות</span>`:""}</td>`;
+      h += `<tr class="${yc}"><td class="cname">${c.name}<span class="yr">שנה ${c.year} · ${c.status||""} · ${c.id}</span></td>`;
       const hasAny = vis.some(t=>t.course===c.id&&t.sem===s);
       if(!hasAny){
         h += `<td class="cell noTasks" colspan="${S.weeks}">אין מטלות מתועדות בסמסטר זה${c.note?` — ${c.note}`:""}${c.assess?` · הערכה: ${c.assess}`:""}</td></tr>`;
