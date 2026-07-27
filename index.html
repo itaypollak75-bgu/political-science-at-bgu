@@ -80,6 +80,13 @@ tr.y2 td.cname{background:#efe9f6;border-right:3px solid var(--b)}
 th.wk .dt{display:block;font-size:9.5px;color:var(--quiet);font-weight:400}
 th.wk.brk{background:var(--warn-soft);color:var(--warn)}
 td.cname.ld{background:#f0eee7}
+.cprof{cursor:pointer;text-decoration:underline;text-decoration-style:dotted;text-underline-offset:2px}
+.cprof:hover{color:var(--a)}
+.mstruct{font-size:12.5px;line-height:1.55;color:var(--ink);background:#faf9f5;border-right:3px solid var(--line);padding:8px 10px;border-radius:6px;margin:2px 0 4px}
+.srtoggle{display:flex;gap:8px;margin:2px 0 14px}
+.srbtn{padding:7px 14px;font-size:12.5px;font-weight:600;color:var(--muted);background:#faf9f5;border:1px solid var(--line);border-radius:7px;cursor:pointer}
+.srbtn.on{color:#fff;background:var(--a);border-color:var(--a)}
+.srbtn:hover:not(.on){color:var(--ink)}
 td.cname{background:#faf9f5;font-weight:600;padding:6px 8px;min-width:132px;font-size:11.5px;text-align:right}
 td.cname .yr{display:block;font-size:10.5px;color:var(--quiet);font-weight:400}
 td.cell{height:46px;text-align:center;vertical-align:middle;padding:2px}
@@ -193,7 +200,7 @@ footer{margin-top:20px;font-size:11.5px;color:var(--quiet);text-align:center;fon
   <button class="tab on" data-p="tl">ציר זמן</button>
   <button class="tab" data-p="gr">גרף התפתחות</button>
   <button class="tab" data-p="mx">מטריצת מיומנויות</button>
-  <button class="tab" data-p="sr">מפת הוגים ומקורות</button>
+  <button class="tab" data-p="sr">מפת הוגים · נלמד מול מתורגל</button>
   <button class="tab" data-p="ls">רשימת מטלות</button>
 </div>
 
@@ -271,7 +278,8 @@ function buildCourses(text){
   COURSES = rows.slice(1).map(r=>{
     const g=n=>{const i=idx(n); return i<0?"":(r[i]||"").trim();};
     return {id:g("course_id"), name:g("course_name"), year:g("year"), status:g("status"),
-            sem:g("semester"), field:g("field"), assess:g("assessment"), note:g("note")};
+            sem:g("semester"), field:g("field"), assess:g("assessment"), note:g("note"),
+            thinkers:splitList(g("thinkers")), topics:splitList(g("topics")), structure:g("structure")};
   }).filter(c=>c.id);
 }
 function buildTasks(text){
@@ -330,7 +338,7 @@ function taskPass(t){
   if(F.inquiry && t.inquiry!==F.inquiry) return false;
   if(F.text){
     const q=F.text.trim();
-    const hay=[t.concept,t.title,t.desc,t.free||"",t.srcNote||"",t.len||"",(t.sources||[]).join(" "),t.skills.join(" "),(t.subs||[]).join(" "),t.depth||"",t.scope||"",t.guide||"",t.aud||"",c.name].join(" ");
+    const hay=[t.concept,t.title,t.desc,t.free||"",t.srcNote||"",t.len||"",(t.sources||[]).join(" "),t.skills.join(" "),(t.subs||[]).join(" "),t.depth||"",t.scope||"",t.guide||"",t.aud||"",c.name,(c.thinkers||[]).join(" "),(c.topics||[]).join(" "),c.structure||""].join(" ");
     if(!hay.includes(q)) return false;
   }
   return true;
@@ -338,6 +346,12 @@ function taskPass(t){
 function coursePass(c){
   if(F.year && c.year!==F.year) return false;
   if(F.course && c.id!==F.course) return false;
+  if(F.text){
+    const q=F.text.trim();
+    const own=[c.name,c.field||"",(c.thinkers||[]).join(" "),(c.topics||[]).join(" "),c.structure||""].join(" ");
+    const viaTask=TASKS.some(t=>t.course===c.id && taskPass(t));
+    if(!own.includes(q) && !viaTask) return false;
+  }
   return true;
 }
 function wkDate(sem,w){
@@ -397,7 +411,11 @@ function renderTL(){
     h += `</tr>`;
     for(const c of cs){
       const yc = c.year==="א׳"?"y1":"y2";
-      h += `<tr class="${yc}"><td class="cname">${c.name}<span class="yr">שנה ${c.year} · ${c.status||""} · ${c.id}</span></td>`;
+      const hasProfile = (c.thinkers||[]).length || (c.topics||[]).length || c.structure;
+      const nameCell = hasProfile
+        ? `<span class="cprof" onclick="openC('${c.id}')">${c.name}</span>`
+        : c.name;
+      h += `<tr class="${yc}"><td class="cname">${nameCell}<span class="yr">שנה ${c.year} · ${c.status||""} · ${c.id}</span></td>`;
       const hasAny = vis.some(t=>t.course===c.id&&t.sem===s);
       if(!hasAny){
         h += `<td class="cell noTasks" colspan="${S.weeks}">אין מטלות מתועדות בסמסטר זה${c.note?` — ${c.note}`:""}${c.assess?` · הערכה: ${c.assess}`:""}</td></tr>`;
@@ -568,13 +586,23 @@ function toggleGR(sk){
   renderGR();
 }
 
-/* ============ SOURCES MAP ============ */
+/* ============ THINKERS MAP — DUAL VIEW ============ */
+let SR_MODE = "practiced"; // "taught" = from syllabi (courses), "practiced" = from tasks
+function setSRMode(m){ SR_MODE=m; renderSR(); }
 function renderSR(){
+  const toggle = `<div class="srtoggle">
+    <button class="srbtn ${SR_MODE==="taught"?"on":""}" onclick="setSRMode('taught')">מה נלמד · מהסילבוס</button>
+    <button class="srbtn ${SR_MODE==="practiced"?"on":""}" onclick="setSRMode('practiced')">מה מתורגל · מהמטלות</button>
+  </div>`;
+  const body = SR_MODE==="taught" ? renderSRTaught() : renderSRPracticed();
+  document.getElementById("sr").innerHTML = toggle + body;
+}
+function renderSRPracticed(){
   const vis = TASKS.filter(taskPass);
   const all = {};
   vis.forEach(t=>(t.sources||[]).forEach(sc=>{ (all[sc]=all[sc]||[]).push(t); }));
   const keys = Object.keys(all).sort((a,b)=>all[b].length-all[a].length);
-  if(!keys.length){document.getElementById("sr").innerHTML=`<p class="empty">אין הוגים או מקורות התואמים את הסינון</p>`;return;}
+  if(!keys.length) return `<p class="empty">אין הוגים או מקורות התואמים את הסינון</p>`;
   let h = `<div class="tl-grid"><table><tr>
     <th class="wk" style="min-width:150px">הוגה / מקור</th>
     <th class="wk" style="min-width:60px">מופעים</th>
@@ -597,7 +625,36 @@ function renderSR(){
   }
   h += `</table></div>
   <p class="note" style="padding:10px 2px">הוגה שמופיע ביותר ממטלה אחת הוא צומת אפשרי — מקום שבו אפשר לבנות רצף. הוגה שמופיע פעם אחת בלבד הוא מועמד ל״מושג נטוש״.</p>`;
-  document.getElementById("sr").innerHTML=h;
+  return h;
+}
+function renderSRTaught(){
+  const cs = COURSES.filter(coursePass);
+  const all = {};
+  cs.forEach(c=>(c.thinkers||[]).forEach(th=>{ (all[th]=all[th]||[]).push(c); }));
+  const keys = Object.keys(all).sort((a,b)=>all[b].length-all[a].length);
+  if(!keys.length) return `<p class="empty">אין הוגים בסילבוסים התואמים את הסינון</p>`;
+  // set of thinkers practiced in tasks (for the "taught but not practiced" finding)
+  const practicedAll = new Set(TASKS.flatMap(t=>t.sources||[]));
+  let h = `<div class="tl-grid"><table><tr>
+    <th class="wk" style="min-width:150px">הוגה / תיאורטיקן</th>
+    <th class="wk" style="min-width:60px">קורסים</th>
+    <th class="wk" style="min-width:340px;text-align:right">נלמד בקורסים</th>
+    <th class="wk" style="min-width:160px;text-align:right">מתורגל במטלה?</th></tr>`;
+  for(const k of keys){
+    const list = all[k];
+    const where = list.map(c=>`<span class="chip" onclick="openC('${c.id}')">${c.name} · שנה ${c.year} · סמ׳ ${c.sem}׳</span>`).join(" ");
+    const multi = list.length>1;
+    const isPracticed = [...practicedAll].some(s=>s.includes(k)||k.includes(s));
+    h += `<tr>
+      <td class="cname">${k}${multi?`<span class="yr" style="color:var(--b)">נלמד ביותר מקורס אחד</span>`:""}</td>
+      <td class="cell" style="font-weight:700;color:${multi?"var(--b)":"var(--quiet)"}">${list.length}</td>
+      <td class="cell" style="text-align:right;padding:6px 8px">${where}</td>
+      <td class="cell" style="text-align:right;padding:6px 8px;font-size:11px;color:${isPracticed?"var(--a)":"var(--c)"}">${isPracticed?"✓ מתורגל":"✗ לא הפך למטלה"}</td>
+    </tr>`;
+  }
+  h += `</table></div>
+  <p class="note" style="padding:10px 2px">מבט זה בא מהסילבוסים — ההוגים שהקורס מצהיר שילַמד. הוגה המסומן ״✗ לא הפך למטלה״ נלמד אך אינו מתורגל באף מטלה — זה ״מושג נטוש״ אפשרי, פער בין ההצהרה למימוש. השווה למבט ״מה מתורגל״.</p>`;
+  return h;
 }
 
 /* ============ LIST ============ */
@@ -643,6 +700,30 @@ function openM(id){
   document.getElementById("ov").classList.add("on");
 }
 function closeM(){document.getElementById("ov").classList.remove("on");}
+function openC(id){
+  const c=cById(id);
+  const taughtThinkers=(c.thinkers||[]);
+  // which thinkers are also practiced in tasks (appear in any task's sources for this course)
+  const practiced=new Set(TASKS.filter(t=>t.course===id).flatMap(t=>t.sources||[]));
+  const tagT=taughtThinkers.map(x=>{
+    const p=[...practiced].some(s=>s.includes(x)||x.includes(s));
+    return `<span class="tag" style="background:${p?"var(--a-soft)":"#f0eee7"};color:${p?"var(--a)":"var(--quiet)"}">${x}${p?" ✓":""}</span>`;
+  }).join("");
+  const tagTop=(c.topics||[]).map(x=>`<span class="tag">${x}</span>`).join("");
+  const nTasks=TASKS.filter(t=>t.course===id).length;
+  document.getElementById("modal").innerHTML=`
+    <button class="close" onclick="closeM()">×</button>
+    <h3>${c.name}</h3>
+    <p class="mm">שנה ${c.year} · סמסטר ${c.sem}׳ · ${c.status||""} · ${c.field||""} · ${c.id}</p>
+    ${c.structure?`<span class="lab">מבנה הקורס</span><p class="mstruct">${c.structure}</p>`:""}
+    ${(c.topics||[]).length?`<span class="lab">נושאים ומושגים מרכזיים</span><div class="tags">${tagTop}</div>`:""}
+    ${taughtThinkers.length?`<span class="lab">הוגים ותיאורטיקנים</span><div class="tags">${tagT}</div>
+      <p class="note" style="padding:4px 2px 0">✓ מסומן = ההוגה מופיע גם במקורות של מטלה בקורס (נלמד וגם מתורגל). ללא סימון = מופיע בסילבוס אך לא במטלה.</p>`:""}
+    ${c.assess?`<span class="lab" style="margin-top:10px">מבנה הערכה</span><p style="font-size:12.5px">${c.assess}</p>`:""}
+    ${c.note?`<span class="lab">הערה</span><p style="font-style:italic;color:var(--muted)">${c.note}</p>`:""}
+    <p class="note">${nTasks?`${nTasks} מטלות מתועדות בקורס.`:"אין מטלות מתועדות בקורס — התוכן מבוסס על הסילבוס בלבד."}</p>`;
+  document.getElementById("ov").classList.add("on");
+}
 
 /* ============ WIRING ============ */
 function renderAll(){
