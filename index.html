@@ -87,6 +87,15 @@ td.cname.ld{background:#f0eee7}
 .srbtn{padding:7px 14px;font-size:12.5px;font-weight:600;color:var(--muted);background:#faf9f5;border:1px solid var(--line);border-radius:7px;cursor:pointer}
 .srbtn.on{color:#fff;background:var(--a);border-color:var(--a)}
 .srbtn:hover:not(.on){color:var(--ink)}
+.fam-controls{display:flex;gap:14px;margin:0 0 10px}
+.lnk{font-size:12px;color:var(--b);background:none;border:none;cursor:pointer;text-decoration:underline;padding:0}
+.fam{margin-bottom:10px}
+.fam-head{display:flex;align-items:center;gap:9px;padding:8px 11px;background:#faf9f5;border-radius:6px;cursor:pointer;user-select:none}
+.fam-head:hover{background:#f2f0ea}
+.fam-arrow{font-size:11px;color:var(--muted);width:12px}
+.fam-name{font-size:13.5px;font-weight:700;color:var(--ink)}
+.fam-meta{font-size:11px;color:var(--muted);margin-inline-start:auto}
+.fam .tl-grid{margin-top:4px}
 td.cname{background:#faf9f5;font-weight:600;padding:6px 8px;min-width:132px;font-size:11.5px;text-align:right}
 td.cname .yr{display:block;font-size:10.5px;color:var(--quiet);font-weight:400}
 td.cell{height:46px;text-align:center;vertical-align:middle;padding:2px}
@@ -248,9 +257,37 @@ const SEMS = {
  "ב":{label:"סמסטר ב׳ · 15.03.2026 – 03.07.2026", weeks:16, start:[2026,2,15], breaks:[3,4]}
 };
 
+/* משפחות ההוגים — סיווג מושגי לפי סוג העבודה האינטלקטואלית.
+   כשמצטרף הוגה חדש שאינו כאן — הוסף שורה, אחרת יוצג תחת "ללא שיוך". */
+const FAM_ORDER = ["קלאסי","ביקורתי","מדינה","ישראלי","היסטורי","מתודולוגי","ללא שיוך"];
+const FAM_LABEL = {
+  "קלאסי":"הגות קלאסית ונורמטיבית",
+  "ביקורתי":"תיאוריה ביקורתית ופרשנית",
+  "מדינה":"סוציולוגיה פוליטית ומדינה",
+  "ישראלי":"פוליטיקה ישראלית",
+  "היסטורי":"היסטוריה פוליטית",
+  "מתודולוגי":"מתודולוגיה ואפיסטמולוגיה",
+  "ללא שיוך":"ללא שיוך משפחתי"
+};
+const THINKER_FAM = {
+  "אפלטון":"קלאסי","אריסטו":"קלאסי","הובס":"קלאסי","לוק":"קלאסי","רוסו":"קלאסי","קאנט":"קלאסי","מיל":"קלאסי",
+  "מרקס":"ביקורתי","פוקו":"ביקורתי","סעיד":"ביקורתי","לוקס":"ביקורתי","הרוואי":"ביקורתי",
+  "וובר":"מדינה","גלנר":"מדינה","אנדרסון":"מדינה","קימרלינג":"מדינה",
+  "יפתחאל":"ישראלי","הורוביץ וליסק":"ישראלי","מאוטנר":"ישראלי","שטרנהל":"ישראלי","הרצוג":"ישראלי",
+  "הובסבאום":"היסטורי","נווה":"היסטורי","רחום":"היסטורי","בראון":"היסטורי",
+  "קון":"מתודולוגי","גירץ":"מתודולוגי","שקדי":"מתודולוגי","בראון וקלארק":"מתודולוגי","קריפנדורף":"מתודולוגי",
+  "קוואל וברינקמן":"מתודולוגי","קינג קיאהיין וורבה":"מתודולוגי","הייג והרופ":"מתודולוגי","סמואלס":"מתודולוגי"
+};
+const famOf = name => THINKER_FAM[name] || "ללא שיוך";
+const FAM_COLOR = {
+  "קלאסי":"var(--a)","ביקורתי":"var(--b)","מדינה":"#1d6a8c","ישראלי":"var(--c)",
+  "היסטורי":"#8a6d2f","מתודולוגי":"#5a5a6e","ללא שיוך":"var(--quiet)"
+};
+
 
 let COURSES = [];
 let TASKS   = [];
+
 
 /* ---------- CSV loading ---------- */
 function parseCSV(text){
@@ -627,33 +664,62 @@ function renderSRPracticed(){
   <p class="note" style="padding:10px 2px">הוגה שמופיע ביותר ממטלה אחת הוא צומת אפשרי — מקום שבו אפשר לבנות רצף. הוגה שמופיע פעם אחת בלבד הוא מועמד ל״מושג נטוש״.</p>`;
   return h;
 }
+let SR_COLLAPSED = new Set(); // families collapsed in the taught view
+function toggleFam(f){ SR_COLLAPSED.has(f)?SR_COLLAPSED.delete(f):SR_COLLAPSED.add(f); renderSR(); }
+function famExpandAll(){ SR_COLLAPSED = new Set(); renderSR(); }
+function famCollapseAll(){ SR_COLLAPSED = new Set(FAM_ORDER); renderSR(); }
 function renderSRTaught(){
   const cs = COURSES.filter(coursePass);
   const all = {};
   cs.forEach(c=>(c.thinkers||[]).forEach(th=>{ (all[th]=all[th]||[]).push(c); }));
-  const keys = Object.keys(all).sort((a,b)=>all[b].length-all[a].length);
+  const keys = Object.keys(all);
   if(!keys.length) return `<p class="empty">אין הוגים בסילבוסים התואמים את הסינון</p>`;
-  // set of thinkers practiced in tasks (for the "taught but not practiced" finding)
   const practicedAll = new Set(TASKS.flatMap(t=>t.sources||[]));
-  let h = `<div class="tl-grid"><table><tr>
-    <th class="wk" style="min-width:150px">הוגה / תיאורטיקן</th>
-    <th class="wk" style="min-width:60px">קורסים</th>
-    <th class="wk" style="min-width:340px;text-align:right">נלמד בקורסים</th>
-    <th class="wk" style="min-width:160px;text-align:right">מתורגל במטלה?</th></tr>`;
-  for(const k of keys){
-    const list = all[k];
-    const where = list.map(c=>`<span class="chip" onclick="openC('${c.id}')">${c.name} · שנה ${c.year} · סמ׳ ${c.sem}׳</span>`).join(" ");
-    const multi = list.length>1;
-    const isPracticed = [...practicedAll].some(s=>s.includes(k)||k.includes(s));
-    h += `<tr>
-      <td class="cname">${k}${multi?`<span class="yr" style="color:var(--b)">נלמד ביותר מקורס אחד</span>`:""}</td>
-      <td class="cell" style="font-weight:700;color:${multi?"var(--b)":"var(--quiet)"}">${list.length}</td>
-      <td class="cell" style="text-align:right;padding:6px 8px">${where}</td>
-      <td class="cell" style="text-align:right;padding:6px 8px;font-size:11px;color:${isPracticed?"var(--a)":"var(--c)"}">${isPracticed?"✓ מתורגל":"✗ לא הפך למטלה"}</td>
-    </tr>`;
+  // group thinkers by family
+  const byFam = {};
+  keys.forEach(k=>{ const f=famOf(k); (byFam[f]=byFam[f]||[]).push(k); });
+  // sort thinkers within a family by course-count desc
+  Object.values(byFam).forEach(arr=>arr.sort((a,b)=>all[b].length-all[a].length));
+  const fams = FAM_ORDER.filter(f=>byFam[f] && byFam[f].length);
+
+  let h = `<div class="fam-controls">
+    <button class="lnk" onclick="famExpandAll()">פרוש הכל</button>
+    <button class="lnk" onclick="famCollapseAll()">קפל הכל</button>
+  </div>`;
+
+  for(const f of fams){
+    const ths = byFam[f];
+    const collapsed = SR_COLLAPSED.has(f);
+    const abandoned = ths.filter(k=>![...practicedAll].some(s=>s.includes(k)||k.includes(s))).length;
+    h += `<div class="fam">
+      <div class="fam-head" onclick="toggleFam('${f}')" style="border-right:4px solid ${FAM_COLOR[f]}">
+        <span class="fam-arrow">${collapsed?"▸":"▾"}</span>
+        <span class="fam-name">${FAM_LABEL[f]}</span>
+        <span class="fam-meta">${ths.length} הוגים${abandoned?` · ${abandoned} לא הפכו למטלה`:""}</span>
+      </div>`;
+    if(!collapsed){
+      h += `<div class="tl-grid"><table><tr>
+        <th class="wk" style="min-width:150px">הוגה / תיאורטיקן</th>
+        <th class="wk" style="min-width:60px">קורסים</th>
+        <th class="wk" style="min-width:340px;text-align:right">נלמד בקורסים</th>
+        <th class="wk" style="min-width:160px;text-align:right">מתורגל במטלה?</th></tr>`;
+      for(const k of ths){
+        const list = all[k];
+        const where = list.map(c=>`<span class="chip" onclick="openC('${c.id}')">${c.name} · שנה ${c.year} · סמ׳ ${c.sem}׳</span>`).join(" ");
+        const multi = list.length>1;
+        const isPracticed = [...practicedAll].some(s=>s.includes(k)||k.includes(s));
+        h += `<tr>
+          <td class="cname">${k}${multi?`<span class="yr" style="color:var(--b)">נלמד ביותר מקורס אחד</span>`:""}</td>
+          <td class="cell" style="font-weight:700;color:${multi?"var(--b)":"var(--quiet)"}">${list.length}</td>
+          <td class="cell" style="text-align:right;padding:6px 8px">${where}</td>
+          <td class="cell" style="text-align:right;padding:6px 8px;font-size:11px;color:${isPracticed?"var(--a)":"var(--c)"}">${isPracticed?"✓ מתורגל":"✗ לא הפך למטלה"}</td>
+        </tr>`;
+      }
+      h += `</table></div>`;
+    }
+    h += `</div>`;
   }
-  h += `</table></div>
-  <p class="note" style="padding:10px 2px">מבט זה בא מהסילבוסים — ההוגים שהקורס מצהיר שילַמד. הוגה המסומן ״✗ לא הפך למטלה״ נלמד אך אינו מתורגל באף מטלה — זה ״מושג נטוש״ אפשרי, פער בין ההצהרה למימוש. השווה למבט ״מה מתורגל״.</p>`;
+  h += `<p class="note" style="padding:10px 2px">מבט זה בא מהסילבוסים — ההוגים שהקורס מצהיר שילַמד, מקובצים לפי משפחה מושגית. הוגה המסומן ״✗ לא הפך למטלה״ נלמד אך אינו מתורגל באף מטלה — ״מושג נטוש״ אפשרי. משפחה שלמה עם הרבה הוגים נטושים היא פער מבני בין ההצהרה למימוש. השווה למבט ״מה מתורגל״.</p>`;
   return h;
 }
 
@@ -707,7 +773,8 @@ function openC(id){
   const practiced=new Set(TASKS.filter(t=>t.course===id).flatMap(t=>t.sources||[]));
   const tagT=taughtThinkers.map(x=>{
     const p=[...practiced].some(s=>s.includes(x)||x.includes(s));
-    return `<span class="tag" style="background:${p?"var(--a-soft)":"#f0eee7"};color:${p?"var(--a)":"var(--quiet)"}">${x}${p?" ✓":""}</span>`;
+    const fam=famOf(x);
+    return `<span class="tag" style="background:${p?"var(--a-soft)":"#f0eee7"};color:${p?"var(--a)":"var(--quiet)"};border-right:3px solid ${FAM_COLOR[fam]}" title="${FAM_LABEL[fam]}">${x}${p?" ✓":""}</span>`;
   }).join("");
   const tagTop=(c.topics||[]).map(x=>`<span class="tag">${x}</span>`).join("");
   const nTasks=TASKS.filter(t=>t.course===id).length;
