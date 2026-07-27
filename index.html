@@ -96,6 +96,15 @@ td.cname.ld{background:#f0eee7}
 .fam-name{font-size:13.5px;font-weight:700;color:var(--ink)}
 .fam-meta{font-size:11px;color:var(--muted);margin-inline-start:auto}
 .fam .tl-grid{margin-top:4px}
+.srlbl{font-size:12px;color:var(--muted);font-weight:600;align-self:center}
+.bubwrap{display:flex;flex-direction:column;gap:18px}
+.bubfam-head{font-size:13.5px;font-weight:700;padding-bottom:5px;margin-bottom:10px;display:inline-block}
+.bubfam-n{font-size:11px;font-weight:400;color:var(--quiet)}
+.bubgrid{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.bub{border-radius:50%;display:flex;align-items:center;justify-content:center;text-align:center;
+  font-size:10px;font-weight:600;line-height:1.1;padding:3px;cursor:default;overflow:hidden;
+  transition:transform .12s ease, box-shadow .12s ease;word-break:break-word}
+.bub:hover{transform:scale(1.12);box-shadow:0 3px 12px rgba(0,0,0,.18);z-index:5;position:relative}
 td.cname{background:#faf9f5;font-weight:600;padding:6px 8px;min-width:132px;font-size:11.5px;text-align:right}
 td.cname .yr{display:block;font-size:10.5px;color:var(--quiet);font-weight:400}
 td.cell{height:46px;text-align:center;vertical-align:middle;padding:2px}
@@ -624,15 +633,64 @@ function toggleGR(sk){
 }
 
 /* ============ THINKERS MAP — DUAL VIEW ============ */
-let SR_MODE = "practiced"; // "taught" = from syllabi (courses), "practiced" = from tasks
+let SR_MODE = "practiced"; // table view mode: "taught" | "practiced"
+let SR_WHAT = "thinkers";  // "thinkers" | "topics"
+let SR_HOW  = "table";     // "table" | "map"
+let SR_TOPGROUP = "field"; // topics map grouping: "field" | "family"
 function setSRMode(m){ SR_MODE=m; renderSR(); }
+function setSRWhat(w){ SR_WHAT=w; if(w==="topics"&&SR_HOW==="table"){SR_MODE="taught";} renderSR(); }
+function setSRHow(h){ SR_HOW=h; renderSR(); }
+function setTopGroup(g){ SR_TOPGROUP=g; renderSR(); }
 function renderSR(){
-  const toggle = `<div class="srtoggle">
-    <button class="srbtn ${SR_MODE==="taught"?"on":""}" onclick="setSRMode('taught')">מה נלמד · מהסילבוס</button>
-    <button class="srbtn ${SR_MODE==="practiced"?"on":""}" onclick="setSRMode('practiced')">מה מתורגל · מהמטלות</button>
+  // axis 1: what to show
+  const whatRow = `<div class="srtoggle">
+    <span class="srlbl">מה:</span>
+    <button class="srbtn ${SR_WHAT==="thinkers"?"on":""}" onclick="setSRWhat('thinkers')">הוגים</button>
+    <button class="srbtn ${SR_WHAT==="topics"?"on":""}" onclick="setSRWhat('topics')">נושאים</button>
+    <span class="srlbl" style="margin-inline-start:16px">איך:</span>
+    <button class="srbtn ${SR_HOW==="table"?"on":""}" onclick="setSRHow('table')">טבלה</button>
+    <button class="srbtn ${SR_HOW==="map"?"on":""}" onclick="setSRHow('map')">מפה</button>
   </div>`;
-  const body = SR_MODE==="taught" ? renderSRTaught() : renderSRPracticed();
-  document.getElementById("sr").innerHTML = toggle + body;
+
+  let body="";
+  if(SR_HOW==="table"){
+    if(SR_WHAT==="thinkers"){
+      // thinkers table keeps the taught/practiced sub-toggle
+      body = `<div class="srtoggle">
+        <button class="srbtn ${SR_MODE==="taught"?"on":""}" onclick="setSRMode('taught')">מה נלמד · מהסילבוס</button>
+        <button class="srbtn ${SR_MODE==="practiced"?"on":""}" onclick="setSRMode('practiced')">מה מתורגל · מהמטלות</button>
+      </div>` + (SR_MODE==="taught" ? renderSRTaught() : renderSRPracticed());
+    } else {
+      body = renderTopicsTable();
+    }
+  } else {
+    body = SR_WHAT==="thinkers" ? renderThinkersMap() : renderTopicsMap();
+  }
+  document.getElementById("sr").innerHTML = whatRow + body;
+}
+function renderTopicsTable(){
+  const cs = COURSES.filter(coursePass);
+  const all = {};
+  cs.forEach(c=>(c.topics||[]).forEach(tp=>{ (all[tp]=all[tp]||[]).push(c); }));
+  const keys = Object.keys(all).sort((a,b)=>all[b].length-all[a].length);
+  if(!keys.length) return `<p class="empty">אין נושאים בסילבוסים התואמים את הסינון</p>`;
+  let h = `<div class="tl-grid"><table><tr>
+    <th class="wk" style="min-width:180px">נושא / מושג</th>
+    <th class="wk" style="min-width:60px">קורסים</th>
+    <th class="wk" style="min-width:380px;text-align:right">נלמד בקורסים</th></tr>`;
+  for(const k of keys){
+    const list = all[k];
+    const where = list.map(c=>`<span class="chip" onclick="openC('${c.id}')">${c.name} · שנה ${c.year} · סמ׳ ${c.sem}׳</span>`).join(" ");
+    const multi = list.length>1;
+    h += `<tr>
+      <td class="cname">${k}${multi?`<span class="yr" style="color:var(--b)">נלמד ביותר מקורס אחד</span>`:""}</td>
+      <td class="cell" style="font-weight:700;color:${multi?"var(--b)":"var(--quiet)"}">${list.length}</td>
+      <td class="cell" style="text-align:right;padding:6px 8px">${where}</td>
+    </tr>`;
+  }
+  h += `</table></div>
+  <p class="note" style="padding:10px 2px">נושא הנלמד ביותר מקורס אחד הוא צומת מושגי — מקום שבו כמה קורסים נפגשים. השווה למפה לקבלת מבט-על.</p>`;
+  return h;
 }
 function renderSRPracticed(){
   const vis = TASKS.filter(taskPass);
@@ -720,6 +778,99 @@ function renderSRTaught(){
     h += `</div>`;
   }
   h += `<p class="note" style="padding:10px 2px">מבט זה בא מהסילבוסים — ההוגים שהקורס מצהיר שילַמד, מקובצים לפי משפחה מושגית. הוגה המסומן ״✗ לא הפך למטלה״ נלמד אך אינו מתורגל באף מטלה — ״מושג נטוש״ אפשרי. משפחה שלמה עם הרבה הוגים נטושים היא פער מבני בין ההצהרה למימוש. השווה למבט ״מה מתורגל״.</p>`;
+  return h;
+}
+
+/* ============ BUBBLE MAPS (overview) ============ */
+function bubbleSize(n){ return 30 + Math.min(n,6)*11; } // px diameter, capped
+function courseListHTML(courses){
+  return courses.map(c=>`${c.name} · שנה ${c.year} · סמ׳ ${c.sem}׳`).join("\n");
+}
+function renderThinkersMap(){
+  const cs = COURSES.filter(coursePass);
+  const all = {};
+  cs.forEach(c=>(c.thinkers||[]).forEach(th=>{ (all[th]=all[th]||[]).push(c); }));
+  const keys = Object.keys(all);
+  if(!keys.length) return `<p class="empty">אין הוגים בסילבוסים התואמים את הסינון</p>`;
+  const practicedAll = new Set(TASKS.flatMap(t=>t.sources||[]));
+  const byFam={};
+  keys.forEach(k=>{ const f=famOf(k); (byFam[f]=byFam[f]||[]).push(k); });
+  Object.values(byFam).forEach(arr=>arr.sort((a,b)=>all[b].length-all[a].length));
+  const fams = FAM_ORDER.filter(f=>byFam[f] && byFam[f].length);
+  let h = `<p class="note" style="padding:2px 2px 12px">מבט-על של שדה הידע. כל בועה = הוגה, גודלה = במספר הקורסים שבהם הוא נלמד. בועה <b>מלאה</b> = מתורגל במטלה. בועה <b>חלולה</b> (מקווקוות) = נלמד אך לא הפך למטלה — ״מושג נטוש״. רחף עם העכבר לפרטי הקורסים.</p>`;
+  h += `<div class="bubwrap">`;
+  for(const f of fams){
+    const ths=byFam[f], col=FAM_COLOR[f];
+    h += `<div class="bubfam">
+      <div class="bubfam-head" style="color:${col};border-bottom:2px solid ${col}">${FAM_LABEL[f]} <span class="bubfam-n">${ths.length}</span></div>
+      <div class="bubgrid">`;
+    for(const k of ths){
+      const list=all[k], sz=bubbleSize(list.length);
+      const practiced=[...practicedAll].some(s=>s.includes(k)||k.includes(s));
+      const tip = k+" — נלמד ב-"+list.length+" קורסים"+(practiced?" · מתורגל במטלה":" · לא הפך למטלה")+"\n"+courseListHTML(list);
+      const style = practiced
+        ? `width:${sz}px;height:${sz}px;background:${col};color:#fff;border:2px solid ${col}`
+        : `width:${sz}px;height:${sz}px;background:transparent;color:${col};border:2px dashed ${col}`;
+      h += `<div class="bub" style="${style}" title="${tip.replace(/"/g,'&quot;')}" data-th="${k.replace(/"/g,'&quot;')}">${k}</div>`;
+    }
+    h += `</div></div>`;
+  }
+  h += `</div>`;
+  return h;
+}
+function renderTopicsMap(){
+  const cs = COURSES.filter(coursePass);
+  const all = {};
+  const topicCourses = {}; // topic -> courses
+  cs.forEach(c=>(c.topics||[]).forEach(tp=>{ (topicCourses[tp]=topicCourses[tp]||[]).push(c); }));
+  const keys = Object.keys(topicCourses);
+  if(!keys.length) return `<p class="empty">אין נושאים בסילבוסים התואמים את הסינון</p>`;
+
+  // grouping function
+  const groupOf = (topic)=>{
+    if(SR_TOPGROUP==="field"){
+      // group by the field of the (first) course carrying this topic
+      const fields=[...new Set(topicCourses[topic].map(c=>c.field||"אחר"))];
+      return fields[0]||"אחר";
+    } else {
+      // family: inherit from the dominant thinker-family of courses carrying this topic
+      const famCount={};
+      topicCourses[topic].forEach(c=>(c.thinkers||[]).forEach(th=>{const f=famOf(th);famCount[f]=(famCount[f]||0)+1;}));
+      const best=Object.keys(famCount).sort((a,b)=>famCount[b]-famCount[a])[0];
+      return best||"ללא שיוך";
+    }
+  };
+  const groups={};
+  keys.forEach(k=>{ const g=groupOf(k); (groups[g]=groups[g]||[]).push(k); });
+  Object.values(groups).forEach(arr=>arr.sort((a,b)=>topicCourses[b].length-topicCourses[a].length));
+  // order: families in FAM_ORDER if family-mode, else alphabetical field
+  let gnames = Object.keys(groups);
+  if(SR_TOPGROUP==="family") gnames = FAM_ORDER.filter(f=>groups[f]);
+  else gnames = gnames.sort((a,b)=>groups[b].length-groups[a].length);
+  const colorOf = g => SR_TOPGROUP==="family" ? (FAM_COLOR[g]||"var(--quiet)") : "var(--b)";
+  const labelOf = g => SR_TOPGROUP==="family" ? (FAM_LABEL[g]||g) : g;
+
+  const groupToggle = `<div class="srtoggle" style="margin-bottom:10px">
+    <span class="srlbl">קיבוץ:</span>
+    <button class="srbtn ${SR_TOPGROUP==="field"?"on":""}" onclick="setTopGroup('field')">לפי תחום</button>
+    <button class="srbtn ${SR_TOPGROUP==="family"?"on":""}" onclick="setTopGroup('family')">לפי משפחה</button>
+  </div>`;
+  let h = groupToggle;
+  h += `<p class="note" style="padding:2px 2px 12px">מבט-על של הנושאים. כל בועה = נושא, גודלה = במספר הקורסים שבהם הוא מופיע. ${SR_TOPGROUP==="family"?"הקיבוץ למשפחה נגזר מההוגים של הקורסים שבהם הנושא נלמד; נושא בקורס ללא הוגים מסומן ״ללא שיוך״.":"הקיבוץ לפי תחום הקורס."} רחף עם העכבר לפרטי הקורסים.</p>`;
+  h += `<div class="bubwrap">`;
+  for(const g of gnames){
+    const tps=groups[g], col=colorOf(g);
+    h += `<div class="bubfam">
+      <div class="bubfam-head" style="color:${col};border-bottom:2px solid ${col}">${labelOf(g)} <span class="bubfam-n">${tps.length}</span></div>
+      <div class="bubgrid">`;
+    for(const k of tps){
+      const list=topicCourses[k], sz=bubbleSize(list.length);
+      const tip=k+" — נלמד ב-"+list.length+" קורסים\n"+courseListHTML(list);
+      h += `<div class="bub" style="width:${sz}px;height:${sz}px;background:${col};color:#fff;border:2px solid ${col}" title="${tip.replace(/"/g,'&quot;')}">${k}</div>`;
+    }
+    h += `</div></div>`;
+  }
+  h += `</div>`;
   return h;
 }
 
